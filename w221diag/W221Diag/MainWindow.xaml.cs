@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
 
 namespace W221Diag;
 
@@ -24,6 +24,64 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(_captureDir);
         Log("W221Diag spusteny v read-only analyzatore.");
         Log("USB sa nepouziva. Ciel: Wi-Fi komunikacia PC <-> TXT Multihub.");
+        Log("Offline import vie citat TEXA data.xml, rgeFB.xml a identifikovat sifrovane session subory.");
+    }
+
+    private void ImportSessionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Vyber data.xml, rgeFB.xml alebo iny subor z TEXA session",
+            Filter = "TEXA session (*.xml;*.bin;*.pdemo;*.pjson;*.xjson)|*.xml;*.bin;*.pdemo;*.pjson;*.xjson|Vsetky subory (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        string? folder = Path.GetDirectoryName(dialog.FileName);
+        if (string.IsNullOrWhiteSpace(folder))
+            return;
+
+        try
+        {
+            var inspection = TexaSessionInspector.InspectFolder(folder);
+            var vehicle = inspection.Vehicle;
+            string vehicleText = vehicle is null
+                ? "vozidlo nezistene"
+                : $"{vehicle.Brand} {vehicle.Model} | VIN {vehicle.Vin}";
+
+            SessionSummaryText.Text = $"{vehicleText} | ECU: {inspection.EcuResults.Count} | DTC: {inspection.DtcCount}";
+            Log("OFFLINE TEXA SESSION");
+            Log($"Priecinok: {inspection.Folder}");
+            if (!string.IsNullOrWhiteSpace(inspection.SessionName))
+                Log($"Session: {inspection.SessionName}");
+            if (vehicle is not null)
+            {
+                Log($"Vozidlo: {vehicle.Brand} {vehicle.Model}");
+                Log($"Motor: {vehicle.Engine} {vehicle.EngineCode}".Trim());
+                Log($"VIN: {vehicle.Vin}");
+                Log($"IDC/TEXA product version: {vehicle.ProductVersion}");
+            }
+
+            Log($"ECU zaznamy: {inspection.EcuResults.Count}; DTC zaznamy: {inspection.DtcCount}");
+
+            foreach (var ecu in inspection.EcuResults.Where(x => x.Dtcs.Count > 0))
+            {
+                string ecuInfo = ecu.Index is null ? ecu.ShortName : $"{ecu.ShortName}[{ecu.Index}]";
+                Log($"{ecuInfo} dataset={ecu.DataSetId} CP5={ecu.Cp5} RD={ecu.ReadState} EA={ecu.ErrorState}");
+                foreach (var dtc in ecu.Dtcs)
+                    Log($"  DTC {dtc.Code} ST={dtc.Status} D={dtc.Detail}");
+            }
+
+            foreach (var file in inspection.Files.Where(x => x.LooksEncrypted))
+                Log($"Opaque/encrypted: {file.FileName} ({file.Format}, {file.Size} B)");
+        }
+        catch (Exception ex)
+        {
+            Log("Chyba pri importe TEXA session: " + ex.Message);
+        }
     }
 
     private async void DiscoverButton_Click(object sender, RoutedEventArgs e)
@@ -41,9 +99,7 @@ public partial class MainWindow : Window
 
             Log($"Aktivne rozhranie: {network.Value.localAddress} / {network.Value.prefixLength}");
             if (network.Value.prefixLength < 24)
-            {
-                Log("Siet je vacsia ako /24. Z bezpecnostnych dovodov skenujem iba lokalny /24 segment.");
-            }
+                Log("Siet je vacsia ako /24. Skenujem iba lokalny /24 segment.");
 
             var octets = network.Value.localAddress.GetAddressBytes();
             string prefix = $"{octets[0]}.{octets[1]}.{octets[2]}.";
@@ -71,7 +127,6 @@ public partial class MainWindow : Window
 
             await Task.WhenAll(tasks);
             Log($"Hotovo. Aktivnych hostov: {_hosts.Count}");
-            Log("Vyber zariadenie, ktore zodpoveda Multihubu, alebo zadaj jeho IP rucne.");
         }
         finally
         {
@@ -101,7 +156,6 @@ public partial class MainWindow : Window
             Log("Zaznam spusteny.");
             if (!string.IsNullOrWhiteSpace(TargetIpBox.Text))
                 Log($"Cielovy Multihub: {TargetIpBox.Text.Trim()}");
-            Log("Teraz v TEXA IDC otvor W221/ZGW a vykonaj iba citanie identifikacie alebo chyb.");
             StartCaptureButton.IsEnabled = false;
             StopCaptureButton.IsEnabled = true;
         }
@@ -144,10 +198,7 @@ public partial class MainWindow : Window
             foreach (var ua in props.UnicastAddresses)
             {
                 if (ua.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ua.Address))
-                {
-                    int prefix = ua.PrefixLength;
-                    return (ua.Address, prefix);
-                }
+                    return (ua.Address, ua.PrefixLength);
             }
         }
         return null;
