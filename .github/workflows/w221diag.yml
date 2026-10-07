@@ -17,6 +17,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Run capture regression tests
         run: dotnet run --project w221diag/tests/CaptureAnalyzer.Tests.csproj
+      - name: Run Fabia profile regression tests
+        run: dotnet run --project w221diag/fabia-tests/FabiaProfile.Tests.csproj
       - name: Publish desktop app
         run: dotnet publish w221diag/W221Diag/W221Diag.csproj -c Release -r win-x64 --self-contained true -o artifacts/W221Diag
       - uses: actions/upload-artifact@v4
