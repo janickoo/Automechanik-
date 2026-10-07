@@ -31,7 +31,16 @@ public static class CaptureAnalyzer
 
     public static IReadOnlyList<FlowSummary> Analyze(string path, string? targetIp = null)
     {
+        if (!string.IsNullOrWhiteSpace(targetIp))
+        {
+            if (!IPAddress.TryParse(targetIp.Trim(), out var address) ||
+                address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                throw new ArgumentException("Filter musí byť platná IPv4 adresa.", nameof(targetIp));
+            targetIp = address.ToString();
+        }
         byte[] data = File.ReadAllBytes(path);
+        if (data.Length < 28 || BinaryPrimitives.ReadUInt32LittleEndian(data) != 0x0A0D0D0A)
+            throw new InvalidDataException("Súbor nie je platný PCAPNG záznam.");
         var flows = new Dictionary<string, MutableFlow>(StringComparer.Ordinal);
         var linkTypes = new Dictionary<uint, ushort>();
 
@@ -39,8 +48,10 @@ public static class CaptureAnalyzer
         bool littleEndian = true;
         uint interfaceIndex = 0;
 
-        while (offset + 12 <= data.Length)
+        while (offset < data.Length)
         {
+            if (data.Length - offset < 12)
+                throw new InvalidDataException("Neúplná hlavička PCAPNG bloku.");
             uint type = ReadUInt32(data, offset, littleEndian);
 
             // Section Header Block has a byte-order magic at offset + 8.
@@ -51,11 +62,20 @@ public static class CaptureAnalyzer
                     littleEndian = true;
                 else if (bomAsLittle == 0x4D3C2B1A)
                     littleEndian = false;
+                else
+                    throw new InvalidDataException("Neplatné poradie bajtov PCAPNG sekcie.");
+                linkTypes.Clear();
+                interfaceIndex = 0;
             }
 
             uint blockLength = ReadUInt32(data, offset + 4, littleEndian);
-            if (blockLength < 12 || blockLength > int.MaxValue || offset + (int)blockLength > data.Length)
-                break;
+            if (blockLength < 12 || blockLength > int.MaxValue || blockLength > data.Length - offset || blockLength % 4 != 0)
+                throw new InvalidDataException("Neúplný alebo neplatný PCAPNG blok.");
+            if (ReadUInt32(data, offset + (int)blockLength - 4, littleEndian) != blockLength)
+                throw new InvalidDataException("Dĺžka PCAPNG bloku nesúhlasí s koncovou hodnotou.");
+            if (type == 0x0A0D0D0A && blockLength < 28 ||
+                type == 1 && blockLength < 20 || type == 6 && blockLength < 32)
+                throw new InvalidDataException("PCAPNG blok je kratší ako povinná hlavička.");
 
             if (type == 0x00000001 && blockLength >= 20) // Interface Description Block
             {
@@ -68,11 +88,10 @@ public static class CaptureAnalyzer
                 uint iface = ReadUInt32(data, offset + 8, littleEndian);
                 int packetOffset = offset + 28;
 
-                if (capturedLength <= int.MaxValue && packetOffset + (int)capturedLength <= offset + (int)blockLength - 4)
-                {
-                    ushort linkType = linkTypes.TryGetValue(iface, out var lt) ? lt : (ushort)1;
+                if (capturedLength > blockLength - 32)
+                    throw new InvalidDataException("Dĺžka paketu presahuje PCAPNG blok.");
+                if (linkTypes.TryGetValue(iface, out var linkType))
                     AnalyzePacket(data.AsSpan(packetOffset, (int)capturedLength), linkType, targetIp, flows);
-                }
             }
 
             offset += (int)blockLength;
@@ -113,6 +132,11 @@ public static class CaptureAnalyzer
         if (version != 4 || ihl < 20 || packet.Length < ipOffset + ihl)
             return;
 
+        int totalLength = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(ipOffset + 2, 2));
+        if (totalLength < ihl)
+            return;
+        packet = packet[..Math.Min(packet.Length, ipOffset + totalLength)];
+        bool nonInitialFragment = (BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(ipOffset + 6, 2)) & 0x1FFF) != 0;
         byte protocol = packet[ipOffset + 9];
         string source = new IPAddress(packet.Slice(ipOffset + 12, 4)).ToString();
         string destination = new IPAddress(packet.Slice(ipOffset + 16, 4)).ToString();
@@ -127,13 +151,13 @@ public static class CaptureAnalyzer
         int destinationPort = 0;
         string protocolName;
 
-        if (protocol == 6 && packet.Length >= transportOffset + 4)
+        if (!nonInitialFragment && protocol == 6 && packet.Length >= transportOffset + 20)
         {
             protocolName = "TCP";
             sourcePort = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(transportOffset, 2));
             destinationPort = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(transportOffset + 2, 2));
         }
-        else if (protocol == 17 && packet.Length >= transportOffset + 4)
+        else if (!nonInitialFragment && protocol == 17 && packet.Length >= transportOffset + 8)
         {
             protocolName = "UDP";
             sourcePort = BinaryPrimitives.ReadUInt16BigEndian(packet.Slice(transportOffset, 2));

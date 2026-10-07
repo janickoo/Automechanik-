@@ -1,0 +1,45 @@
+<Window x:Class="W221Diag.FabiaDiagnosticWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AutoDiag PRO — Škoda Fabia Combi CBZA" Height="820" Width="1180" MinHeight="650" MinWidth="880">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="Škoda Fabia Combi · CBZA 1.2 TSI" FontSize="25" FontWeight="Bold"/>
+            <TextBlock Text="TEXA IDC6 / TXT Multihub — offline session, merania a diagnostický postup" Margin="0,6,0,12"/>
+        </StackPanel>
+        <WrapPanel Grid.Row="1" Margin="0,0,0,12">
+            <Button x:Name="ImportButton" Content="Importovať TEXA session" Padding="15,8" Margin="0,0,8,0" Click="Import_Click"/>
+            <Button Content="Uložiť diagnostický protokol" Padding="15,8" Margin="0,0,8,0" Click="Save_Click"/>
+            <Button Content="Wi-Fi / PCAPNG / W221" Padding="15,8" Click="Network_Click"/>
+        </WrapPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="3*"/></Grid.ColumnDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,16,0">
+                <StackPanel>
+                    <TextBlock Text="VIN (17 znakov)"/><TextBox x:Name="VinBox" Margin="0,4,0,10" MinHeight="30" MaxLength="17" TextChanged="Input_Changed"/>
+                    <TextBlock Text="Rok / nájazd km / prevodovka"/>
+                    <Grid Margin="0,4,0,10"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="YearBox" MinHeight="30" Margin="0,0,6,0" ToolTip="Rok výroby" TextChanged="Input_Changed"/>
+                        <TextBox x:Name="MileageBox" Grid.Column="1" MinHeight="30" Margin="0,0,6,0" ToolTip="Nájazd km" TextChanged="Input_Changed"/>
+                        <TextBox x:Name="TransmissionBox" Grid.Column="2" MinHeight="30" ToolTip="Prevodovka" TextChanged="Input_Changed"/>
+                    </Grid>
+                    <TextBlock Text="Symptómy"/><TextBox x:Name="SymptomsBox" MinHeight="65" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,4,0,10" TextChanged="Input_Changed"/>
+                    <TextBlock Text="Podmienky (teplota, otáčky, záťaž)"/><TextBox x:Name="ConditionsBox" MinHeight="55" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,4,0,10" TextChanged="Input_Changed"/>
+                    <TextBlock Text="DTC + stav / freeze-frame / alebo bez DTC"/><TextBox x:Name="DtcsBox" MinHeight="65" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,4,0,10" TextChanged="Input_Changed"/>
+                    <TextBlock Text="Čo už bolo robené (alebo žiadne zásahy)"/><TextBox x:Name="RepairsBox" MinHeight="55" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,4,0,10" TextChanged="Input_Changed"/>
+                    <TextBlock Text="Merania: bod, prístroj, podmienky, hodnota, OEM limit + zdroj"/><TextBox x:Name="MeasurementsBox" MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap" Margin="0,4,0,10" TextChanged="Input_Changed"/>
+                </StackPanel>
+            </ScrollViewer>
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                <ComboBox x:Name="ProcedureBox" MinHeight="34" SelectionChanged="Procedure_Changed"/>
+                <TextBlock x:Name="ImportStatusText" Grid.Row="1" Margin="0,10,0,10" TextWrapping="Wrap" Text="TEXA session zatiaľ nenačítaná."/>
+                <TextBox x:Name="WorkflowBox" Grid.Row="2" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontSize="14" Padding="12"/>
+            </Grid>
+        </Grid>
+        <TextBlock x:Name="StatusText" Grid.Row="3" Margin="0,12,0,0" TextWrapping="Wrap" Text="Príprava diagnostiky. Priame čítanie RJ nie je implementované. Údaje ulož tlačidlom protokolu."/>
+    </Grid>
+</Window>
