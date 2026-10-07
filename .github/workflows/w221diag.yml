@@ -1,0 +1,25 @@
+name: W221Diag Windows build
+on:
+  push:
+    paths: ['w221diag/**', '.github/workflows/w221diag.yml']
+  pull_request:
+    paths: ['w221diag/**', '.github/workflows/w221diag.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run capture regression tests
+        run: dotnet run --project w221diag/tests/CaptureAnalyzer.Tests.csproj
+      - name: Publish desktop app
+        run: dotnet publish w221diag/W221Diag/W221Diag.csproj -c Release -r win-x64 --self-contained true -o artifacts/W221Diag
+      - uses: actions/upload-artifact@v4
+        with:
+          name: W221Diag-win-x64
+          path: artifacts/W221Diag/

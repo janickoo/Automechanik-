@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -15,6 +16,9 @@ public partial class MainWindow : Window
     private readonly string _captureDir;
     private string? _etlPath;
     private string? _pcapPath;
+    private IReadOnlyList<CaptureAnalyzer.FlowSummary>? _captureFlows;
+    private string? _analyzedPath;
+    private string? _analyzedTarget;
 
     public MainWindow()
     {
@@ -25,6 +29,69 @@ public partial class MainWindow : Window
         Log("W221Diag spusteny v read-only analyzatore.");
         Log("USB sa nepouziva. Ciel: Wi-Fi komunikacia PC <-> TXT Multihub.");
         Log("Offline import vie citat TEXA data.xml, rgeFB.xml a identifikovat sifrovane session subory.");
+    }
+
+    private async void AnalyzeCaptureButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Otvoriť PCAPNG záznam komunikácie",
+            Filter = "PCAPNG záznam (*.pcapng)|*.pcapng",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        AnalyzeCaptureButton.IsEnabled = false;
+        ExportCaptureButton.IsEnabled = false;
+        _captureFlows = null;
+        FlowsList.ItemsSource = null;
+        CaptureSummaryText.Text = "Analyzujem záznam…";
+        string target = TargetIpBox.Text.Trim();
+        try
+        {
+            var flows = await Task.Run(() => CaptureAnalyzer.Analyze(dialog.FileName, target));
+            _captureFlows = flows;
+            _analyzedPath = dialog.FileName;
+            _analyzedTarget = target;
+            FlowsList.ItemsSource = flows;
+            CaptureSummaryText.Text = $"{Path.GetFileName(dialog.FileName)} | toky: {flows.Count} | pakety: {flows.Sum(f => (long)f.Packets)} | filter: {(target.Length == 0 ? "všetky IPv4" : target)}";
+            ExportCaptureButton.IsEnabled = true;
+            Log(flows.Count == 0
+                ? "Nenašli sa podporované IPv4 toky pre zvolený filter. Prázdny výsledok nepotvrdzuje neprítomnosť komunikácie."
+                : "PCAPNG načítané. Porty sú pozorované sieťové údaje; diagnostický protokol zatiaľ nie je identifikovaný.");
+        }
+        catch (Exception ex)
+        {
+            CaptureSummaryText.Text = "Analýza zlyhala.";
+            Log("Chyba PCAPNG: " + ex.Message);
+        }
+        finally { AnalyzeCaptureButton.IsEnabled = true; }
+    }
+
+    private void ExportCaptureButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_captureFlows is null) return;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Uložiť výsledok analýzy",
+            Filter = "JSON protokol (*.json)|*.json",
+            FileName = Path.GetFileNameWithoutExtension(_analyzedPath) + "-flows.json"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            var report = new
+            {
+                SchemaVersion = 1,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CaptureFile = Path.GetFileName(_analyzedPath),
+                TargetIpv4 = _analyzedTarget,
+                Scope = "Offline PCAPNG; Ethernet IPv4, directional flows; no diagnostic protocol decoding",
+                Flows = _captureFlows
+            };
+            File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
+            Log("Protokol uložený: " + dialog.FileName);
+        }
+        catch (Exception ex) { Log("Export protokolu zlyhal: " + ex.Message); }
     }
 
     private void ImportSessionButton_Click(object sender, RoutedEventArgs e)

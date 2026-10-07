@@ -38,3 +38,21 @@ Analyze the captures to identify:
 - CAN request/response transport encapsulation
 
 Only after the transport is understood will direct W221 read-only diagnostics be implemented. Writes/coding are intentionally deferred until read-only communication and backups are proven reliable.
+
+
+## PCAPNG flow analysis (2026-10-07)
+
+Click **Otvoriť PCAPNG** to inspect an existing capture. Enter the Multihub IPv4 address before opening to filter both directions; leave it empty to show all supported IPv4 traffic. The **Sieťové toky** tab lists directional TCP/UDP endpoints, packet counts and captured frame bytes. **Exportovať JSON** saves the analyzed flows and the filter used. Analysis runs in the background; a failed import clears the previous result and disables export.
+
+The analyzer supports Ethernet IPv4 frames and one 802.1Q tag, multiple PCAPNG sections and either byte order. Unsupported link types and unknown interfaces are skipped. Non-initial IPv4 fragments are counted without ports. Damaged block lengths or trailers are rejected rather than presented as a complete report. IPv6, stream reassembly and TEXA protocol decoding are not implemented. An empty flow list does not prove that no communication occurred. Observed TCP/UDP ports do not establish a vehicle diagnostic protocol.
+
+### Build and regression checks
+
+On a machine with .NET 8 SDK:
+
+```powershell
+dotnet run --project w221diag/tests/CaptureAnalyzer.Tests.csproj
+dotnet build w221diag/W221Diag/W221Diag.csproj -c Release
+```
+
+The dependency-free regression executable exercises target filtering, TCP/UDP, endian handling, section-local interface IDs, IP fragments, damaged captures and invalid filters. The GitHub Actions workflow also builds the WPF app on Windows and uploads a portable Windows build. The application still requires a real Windows/TEXA session to verify packet capture and the desktop controls; it does not send vehicle diagnostic commands.

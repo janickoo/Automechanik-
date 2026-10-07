@@ -31,7 +31,13 @@
             <Button x:Name="StopCaptureButton" Grid.Column="3" Content="Zastaviť a exportovať" Padding="16,7" Click="StopCaptureButton_Click" IsEnabled="False"/>
         </Grid>
 
-        <Grid Grid.Row="2" Margin="0,0,0,12">
+        <StackPanel Grid.Row="2" Margin="0,0,0,12">
+        <WrapPanel Margin="0,0,0,8">
+            <Button x:Name="AnalyzeCaptureButton" Content="Otvoriť PCAPNG" Padding="16,7" Margin="0,0,8,0" Click="AnalyzeCaptureButton_Click"/>
+            <Button x:Name="ExportCaptureButton" Content="Exportovať JSON" Padding="16,7" IsEnabled="False" Click="ExportCaptureButton_Click"/>
+        </WrapPanel>
+        <TextBlock x:Name="CaptureSummaryText" Text="PCAPNG: zatiaľ nenačítané." TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -39,6 +45,7 @@
             <Button Grid.Column="0" Content="Importovať TEXA session" Padding="16,7" Margin="0,0,10,0" Click="ImportSessionButton_Click"/>
             <TextBlock x:Name="SessionSummaryText" Grid.Column="1" VerticalAlignment="Center" Text="Offline session: zatiaľ nenačítaná."/>
         </Grid>
+        </StackPanel>
 
         <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
@@ -58,11 +65,24 @@
                 </ListView>
             </GroupBox>
 
-            <GroupBox Header="Stav / protokol / offline session" Grid.Column="1" Margin="8,0,0,0">
+            <TabControl Grid.Column="1" Margin="8,0,0,0">
+            <TabItem Header="Sieťové toky">
+                <DataGrid x:Name="FlowsList" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Protokol" Binding="{Binding Protocol}" Width="70"/>
+                        <DataGridTextColumn Header="Zdroj" Binding="{Binding SourceEndpoint}" Width="*"/>
+                        <DataGridTextColumn Header="Cieľ" Binding="{Binding DestinationEndpoint}" Width="*"/>
+                        <DataGridTextColumn Header="Pakety" Binding="{Binding Packets}" Width="65"/>
+                        <DataGridTextColumn Header="Bajty rámcov" Binding="{Binding Bytes}" Width="90"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Protokol / TEXA session">
                 <TextBox x:Name="LogBox" FontFamily="Consolas" FontSize="13" IsReadOnly="True"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                          TextWrapping="NoWrap"/>
-            </GroupBox>
+            </TabItem>
+            </TabControl>
         </Grid>
 
         <TextBlock Grid.Row="4" Margin="0,12,0,0" Text="Bezpečný režim: Wi-Fi časť zatiaľ iba zisťuje sieť a zaznamenáva komunikáciu. Offline import iba číta TEXA session súbory; do vozidla nič nezapisuje."/>
