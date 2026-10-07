@@ -17,7 +17,15 @@ public static class FabiaDiagnosticProfile
 
     public static VehicleMatch CheckVehicle(TexaSessionInspector.VehicleMetadata? vehicle, string expectedVin)
     {
-        return VehicleMatch.Unknown;
+        if (vehicle is null) return VehicleMatch.Unknown;
+        string brand = Normalize(vehicle.Brand), model = Normalize(vehicle.Model), engine = Normalize(vehicle.EngineCode);
+        if ((brand.Length > 0 && brand != "SKODA") || (model.Length > 0 && !model.StartsWith("FABIA")) ||
+            (engine.Length > 0 && engine != "CBZA")) return VehicleMatch.Mismatch;
+        if (!string.IsNullOrWhiteSpace(expectedVin) && !string.IsNullOrWhiteSpace(vehicle.Vin) &&
+            !expectedVin.Trim().Equals(vehicle.Vin.Trim(), StringComparison.OrdinalIgnoreCase)) return VehicleMatch.Mismatch;
+        if (brand.Length == 0 || model.Length == 0 || engine.Length == 0 ||
+            !IsVin(expectedVin) || !IsVin(vehicle.Vin)) return VehicleMatch.Unknown;
+        return VehicleMatch.Match;
     }
 
     public static CaseReport CreateReport(CaseInput input, string procedure, TexaSessionInspector.SessionInspection? session)
